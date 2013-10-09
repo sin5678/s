@@ -37,12 +37,13 @@ Blog:www.sincoder.com
 #include <netinet/ip.h>    //Provides declarations for ip header
 #define  msg(fmt,arg...) printf(fmt,##arg);fflush(stdout)
 
-const char *logFileName = "Result.txt";
+const char *logFileName = "result.txt";
 int log_fd = 0;  // for log
 int bIsLogRet = 0 ;//is log scan result
 uint32_t g_bind_ip = 0; // 绑定的本地ip
-uint8_t g_port_list[0xFFFF] = {0}; //要扫描的端口相应的位会被置1
+uint8_t  g_port_list[0xFFFF] = {0}; //要扫描的端口相应的位会被置1
 volatile int g_IsTimeToShutDown = 0;
+volatile uint32_t g_open_port_count = 0 ;//扫描到的开发端口的 ip 的数量
 
 enum IpSingType
 {
@@ -99,6 +100,8 @@ typedef struct _psd_header //定义TCP伪首部
 } PSD_HEADER;
 
 #pragma pack(pop)
+
+static int start_sniffer();
 
 /*
 Get ip from domain name
@@ -287,7 +290,7 @@ int  ParseIpString(const char *IpString)
     const char *p = IpString;
     char *slash = NULL;
     char buff[256];
-    struct hostent *hostInfo ;
+    int count = 0;
 
     while ((p = TakeOutStringByChar(p, buff, 256, ',')))
     {
@@ -326,12 +329,10 @@ int  ParseIpString(const char *IpString)
         if ((start || end) && (htonl(start) < htonl(end)))
         {
             InsertIntoIpList(type, start, end);
-            //char endIpStr[256];
-            //strcpy(endIpStr, inet_ntoa(*(struct in_addr *)&end));
-            //strcpy(startIpStr, inet_ntoa(*(struct in_addr*)&start));
-            //msg("start : %s end :%s \n",startIpStr,endIpStr);
+            count ++;
         }
     }
+    return count;
 }
 
 
@@ -431,6 +432,7 @@ void *receive_ack( void *ptr )
 {
     //Start the sniffer thing
     start_sniffer();
+    return NULL;
 }
 
 /*
@@ -439,9 +441,9 @@ void *receive_ack( void *ptr )
  */
 int is_port_in_portlist(uint16_t port)
 {
-	if(port < 0xFFFF)
-		return g_port_list[port];
-	return 0;
+    if (port < 0xFFFF)
+        return g_port_list[port];
+    return 0;
 }
 
 /*
@@ -454,26 +456,30 @@ void process_packet(unsigned char *buffer, int size)
     int len = 0;
     IP_HEADER *iphdr = (IP_HEADER *)buffer;
     TCP_HEADER *tcphdr = NULL;
-    struct sockaddr_in source, dest;
 
-    if (iphdr->proto = IPPROTO_TCP)
+    if (iphdr->proto == IPPROTO_TCP)
     {
         /* retireve the position of the tcp header */
         int ip_len = (iphdr->h_lenver & 0xf) * 4;
         tcphdr = (TCP_HEADER *) (buffer + ip_len);
         if (tcphdr->th_flag == 18) //ACK+SYN
         {
-			uint16_t port = ntohs(tcphdr->th_sport);
-			if(is_port_in_portlist(port))
-			{
-            len = sprintf(log_buff, "%-16s%-8uOPEN                                           \n",
-            inet_ntoa(*(struct in_addr *)&iphdr->sourceIP),
-            ntohs(tcphdr->th_sport));
-            if (bIsLogRet)
+            uint16_t port = ntohs(tcphdr->th_sport);
+            if (is_port_in_portlist(port))
             {
-                write(log_fd, log_buff, len);
-            }
-            msg("%s", log_buff);
+                g_open_port_count ++;
+                len = sprintf(log_buff, "%-16s%-8u                            \n",
+                              inet_ntoa(*(struct in_addr *)&iphdr->sourceIP),
+                              ntohs(tcphdr->th_sport));
+                if (bIsLogRet)
+                {
+                    int ret = write(log_fd, log_buff, len);
+                    if(ret < 0 )
+                    {
+                        msg("write result file failed !!\n");
+                    }
+                }
+                msg("%s", log_buff);
             }
         }
     }
@@ -483,7 +489,8 @@ void process_packet(unsigned char *buffer, int size)
 int start_sniffer()
 {
     int sock_raw = 0; // raw socket for sniff
-    int saddr_size , data_size;
+    int  data_size;
+    socklen_t saddr_size;
     struct sockaddr saddr;
 
     unsigned char buffer[65536];// = (unsigned char *)malloc(65536); //Its Big!
@@ -498,7 +505,7 @@ int start_sniffer()
         return 1;
     }
 
-    saddr_size = sizeof saddr;
+    saddr_size = sizeof(saddr);
     while (!g_IsTimeToShutDown)
     {
         //Receive a packet
@@ -521,7 +528,6 @@ int start_sniffer()
  */
 uint32_t get_local_ip (uint32_t ip)
 {
-    char buffer[100];
     int sock = socket ( AF_INET, SOCK_DGRAM, 0);
     int dns_port = 53;
     int err;
@@ -566,7 +572,7 @@ int ip_callback(uint32_t ip, void *lparam)
         if (g_port_list[idx])
         {
             addr.sin_port = htons(idx);
-            msg("scanning %16s:%u\r", inet_ntoa(*(struct in_addr *)&ip), idx);
+            msg("scanning %16s:%u   found %8u host\r", inet_ntoa(*(struct in_addr *)&ip), idx,g_open_port_count);
             srandom(seed++);
             len = buildSynPacket(buff, g_bind_ip, htons(random() % 0xFFFF), ip, addr.sin_port);
             if ( sendto (s, buff, len, 0 , (struct sockaddr *) &addr, sizeof (addr)) < 0)
@@ -614,7 +620,8 @@ int main(int argc, char *argv[])
     s = socket (AF_INET, SOCK_RAW , IPPROTO_TCP);
     if (s < 0)
     {
-        msg("%s", "Error creating socket. Error number : %d . Error message : %s \n" , errno , strerror(errno));
+        msg("Error creating socket. Error number : %d . Error message : %s \n" , errno , strerror(errno));
+        msg("s must be run as root !\n");
         return -1;
     }
     //IP_HDRINCL to tell the kernel that headers are included in the packet
@@ -630,7 +637,7 @@ int main(int argc, char *argv[])
     g_IsTimeToShutDown = 0;
     if ( pthread_create( &sniffer_thread , NULL ,  receive_ack , NULL) < 0)
     {
-        msg("%s", "Could not create sniffer thread. Error number : %d . Error message : %s \n" , errno , strerror(errno));
+        msg("Could not create sniffer thread. Error number : %d . Error message : %s \n" , errno , strerror(errno));
         goto clean;
     }
     GetNextScanIp(ip_callback, (void *)s);
