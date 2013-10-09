@@ -433,7 +433,20 @@ void *receive_ack( void *ptr )
     start_sniffer();
 }
 
+/*
+ * 看看给定的一个 port 是不是我们要求检测的 port
+ * 在的话返回 1  否则返回 0
+ */
+int is_port_in_portlist(uint16_t port)
+{
+	if(port < 0xFFFF)
+		return g_port_list[port];
+	return 0;
+}
 
+/*
+ * 处理收到的数据包 看看那些 Ip 的端口打开了
+ */
 void process_packet(unsigned char *buffer, int size)
 {
     //Get the IP Header part of this packet
@@ -450,12 +463,18 @@ void process_packet(unsigned char *buffer, int size)
         tcphdr = (TCP_HEADER *) (buffer + ip_len);
         if (tcphdr->th_flag == 18) //ACK+SYN
         {
-            len = sprintf(log_buff, "%-16s%-8uOPEN                                           \n", inet_ntoa(*(struct in_addr *)&iphdr->sourceIP), ntohs(tcphdr->th_sport));
+			uint16_t port = ntohs(tcphdr->th_sport);
+			if(is_port_in_portlist(port))
+			{
+            len = sprintf(log_buff, "%-16s%-8uOPEN                                           \n",
+            inet_ntoa(*(struct in_addr *)&iphdr->sourceIP),
+            ntohs(tcphdr->th_sport));
             if (bIsLogRet)
             {
                 write(log_fd, log_buff, len);
             }
             msg("%s", log_buff);
+            }
         }
     }
 }
@@ -497,6 +516,9 @@ int start_sniffer()
     return 0;
 }
 
+/*
+ * 得到本地要绑定的 ip
+ */
 uint32_t get_local_ip (uint32_t ip)
 {
     char buffer[100];
