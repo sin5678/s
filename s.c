@@ -1,19 +1,19 @@
 /*
 Copyright (C) sincoder
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License
+  as published by the Free Software Foundation; either version 2
+  of the License, or (at your option) any later version.
+  
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+	
+	  You should have received a copy of the GNU General Public License
+	  along with this program; if not, write to the Free Software
+	  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 /*
 TCP Syn port scanner
@@ -35,7 +35,7 @@ Blog:www.sincoder.com
 #include <arpa/inet.h>
 #include <netinet/tcp.h>    //Provides declarations for tcp header
 #include <netinet/ip.h>    //Provides declarations for ip header
-#define  msg(fmt,arg...) printf(fmt,##arg);fflush(stdout)
+#define  msg(fmt,arg...) do{printf(fmt,##arg);fflush(stdout);}while(0)
 
 const char *logFileName = "result.txt";
 int log_fd = 0;  // for log
@@ -48,7 +48,7 @@ volatile uint32_t g_open_port_count = 0 ;//扫描到的开发端口的 ip 的数
 enum IpSingType
 {
     IP_TYPE_RANGE,
-    IP_TYPE_SINGLE
+	IP_TYPE_SINGLE
 };
 
 typedef struct _IPSting
@@ -119,9 +119,9 @@ uint32_t hostname_to_ip(char *hostname)
         //use inet_ntoa
         return inet_addr(hostname);
     }
-
+	
     addr_list = (struct in_addr **) he->h_addr_list;
-
+	
     for (i = 0; addr_list[i] != NULL; i++)
     {
         //Return the first one;
@@ -146,7 +146,7 @@ unsigned short checkSum(void *buffer, int size)
     return (unsigned short) (~cksum);
 }
 
-int    buildSynPacket(char *buf, u_long saddr, u_long sport, u_long daddr, u_long dport)
+int   buildSynPacket(char *buf, u_long saddr, u_long sport, u_long daddr, u_long dport)
 {
     int    len = 0;
     IP_HEADER ip_header;
@@ -163,21 +163,21 @@ int    buildSynPacket(char *buf, u_long saddr, u_long sport, u_long daddr, u_lon
     ip_header.checksum = 0; //16位IP首部校验和
     ip_header.sourceIP = saddr; //32位源IP地址
     ip_header.destIP = daddr; //32位目的IP地址
-
-
+	
+	
     //填充TCP首部
     tcp_header.th_sport = sport; //源端口号
     tcp_header.th_lenres = (sizeof(TCP_HEADER) / 4 << 4 | 0); //TCP长度和保留位
     tcp_header.th_win = htons(0x4000);
-
+	
     //填充TCP伪首部（用于计算校验和，并不真正发送）
     psd_header.saddr = ip_header.sourceIP;
     psd_header.daddr = ip_header.destIP;
     psd_header.mbz = 0;
     psd_header.ptcl = IPPROTO_TCP;
     psd_header.tcpl = htons(sizeof(tcp_header));
-
-
+	
+	
     tcp_header.th_dport = dport; //目的端口号
     tcp_header.th_ack = 0; //ACK序列号置为0
     tcp_header.th_flag = 2; //SYN 标志
@@ -188,27 +188,27 @@ int    buildSynPacket(char *buf, u_long saddr, u_long sport, u_long daddr, u_lon
     memcpy(buf, &psd_header, sizeof(psd_header));
     memcpy(buf + sizeof(psd_header), &tcp_header, sizeof(tcp_header));
     tcp_header.th_sum = checkSum(buf, sizeof(psd_header) + sizeof(tcp_header));
-
+	
     //计算IP校验和
     memcpy(buf, &ip_header, sizeof(ip_header));
     memcpy(buf + sizeof(ip_header), &tcp_header, sizeof(tcp_header));
     memset(buf + sizeof(ip_header) + sizeof(tcp_header), 0, 4);
     len = sizeof(ip_header) + sizeof(tcp_header);
     ip_header.checksum = checkSum(buf, len);
-
+	
     //填充发送缓冲区
     memcpy(buf, &ip_header, sizeof(ip_header));
-
+	
     return len;
 }
 
 const char *TakeOutStringByChar(const char *Source, char *Dest, int buflen, char ch)
 {
     int i;
-
+	
     if (Source == NULL)
         return NULL;
-
+	
     const char *p = strchr(Source, ch);
     while (*Source == ' ')
         Source++;
@@ -220,12 +220,12 @@ const char *TakeOutStringByChar(const char *Source, char *Dest, int buflen, char
         return NULL;
     else
         Dest[i] = '\0';
-
+	
     const char *lpret = p ? p + 1 : Source + i;
-
+	
     while (Dest[i - 1] == ' ' && i > 0)
         Dest[i-- -1] = '\0';
-
+	
     return lpret;
 }
 
@@ -269,9 +269,9 @@ void DestoryIpList()
   uint32_t ip = start;
   do
   {
-        msg("%s\n",inet_ntoa(*(struct in_addr *)&ip));
-
-          } while ((ip = GetNextIpInRange(ip,end)));
+  msg("%s\n",inet_ntoa(*(struct in_addr *)&ip));
+  
+	} while ((ip = GetNextIpInRange(ip,end)));
 */
 uint32_t GetNextIpInRange(uint32_t start, uint32_t end)
 {
@@ -291,7 +291,7 @@ int  ParseIpString(const char *IpString)
     char *slash = NULL;
     char buff[256];
     int count = 0;
-
+	
     while ((p = TakeOutStringByChar(p, buff, 256, ',')))
     {
         char startIpStr[256] = {0};
@@ -318,7 +318,7 @@ int  ParseIpString(const char *IpString)
             start = hostname_to_ip(startIpStr);
             end = hostname_to_ip(slash + 1);
             type = IP_TYPE_RANGE;
-
+			
         }
         else  //12.12.12.12
         {
@@ -341,7 +341,7 @@ void  GetNextScanIp(int (*callback)(uint32_t, void *), void *lparam)
     uint32_t idx;
     if (!g_ScanIpList)
     {
-        msg("%s Ip list not init\n", __func__);
+        msg("%s Ip list not init ?!\n", __func__);
         return ;
     }
     for (idx = 0 ; idx < g_IpCount; idx ++)
@@ -349,21 +349,20 @@ void  GetNextScanIp(int (*callback)(uint32_t, void *), void *lparam)
         switch (g_ScanIpList[idx].type)
         {
         case IP_TYPE_RANGE:
-        {
-            //msg("%s:%x %x\n",__func__,g_ScanIpList[idx].start_ip,g_ScanIpList[idx].end_ip);
-            uint32_t ip = g_ScanIpList[idx].start_ip;
-            do
-            {
-                callback(ip, lparam);
-            }
-            while ((ip = GetNextIpInRange(ip, g_ScanIpList[idx].end_ip)));
-        }
-        break;
+			{
+				//msg("%s:%x %x\n",__func__,g_ScanIpList[idx].start_ip,g_ScanIpList[idx].end_ip);
+				uint32_t ip = g_ScanIpList[idx].start_ip;
+				do
+				{
+					callback(ip, lparam);
+				}while ((ip = GetNextIpInRange(ip, g_ScanIpList[idx].end_ip)));
+			}
+			break;
         case IP_TYPE_SINGLE:
-        {
-            callback(g_ScanIpList[idx].start_ip, lparam);
-        }
-        break;
+			{
+				callback(g_ScanIpList[idx].start_ip, lparam);
+			}
+			break;
         default:
             msg("%s:%s", __func__, "unknow ip type \n");
             break;
@@ -430,15 +429,45 @@ Method to sniff incoming packets and look for Ack replies
 */
 void *receive_ack( void *ptr )
 {
-    //Start the sniffer thing
-    start_sniffer();
-    return NULL;
+	   int sock_raw = 0; // raw socket for sniff
+	   int  data_size;
+	   socklen_t saddr_size;
+	   struct sockaddr saddr;
+	   
+	   unsigned char buffer[65536];// = (unsigned char *)malloc(65536); //Its Big!
+	   
+	   //Create a raw socket that shall sniff
+	   sock_raw = socket(AF_INET , SOCK_RAW , IPPROTO_TCP);
+	   
+	   if (sock_raw < 0)
+	   {
+		   printf("Socket Error\n");
+		   fflush(stdout);
+		   return 1;
+	   }
+	   
+	   saddr_size = sizeof(saddr);
+	   while (!g_IsTimeToShutDown)
+	   {
+		   //Receive a packet
+		   data_size = recvfrom(sock_raw , buffer , 65536 , 0 , &saddr , &saddr_size);
+		   if (data_size < 0 )
+		   {
+			   msg("%s", "Recvfrom error , failed to get packets\n");
+			   return 1;
+		   }
+		   //Now process the packet
+		   process_packet(buffer , data_size);
+	   }
+	   close(sock_raw);
+	   //    msg("%s","Sniffer finished.");
+	   return NULL;
 }
 
 /*
- * 看看给定的一个 port 是不是我们要求检测的 port
- * 在的话返回 1  否则返回 0
- */
+* 看看给定的一个 port 是不是我们要求检测的 port
+* 在的话返回 1  否则返回 0
+*/
 int is_port_in_portlist(uint16_t port)
 {
     if (port < 0xFFFF)
@@ -447,8 +476,8 @@ int is_port_in_portlist(uint16_t port)
 }
 
 /*
- * 处理收到的数据包 看看那些 Ip 的端口打开了
- */
+* 处理收到的数据包 看看那些 Ip 的端口打开了
+*/
 void process_packet(unsigned char *buffer, int size)
 {
     //Get the IP Header part of this packet
@@ -456,7 +485,7 @@ void process_packet(unsigned char *buffer, int size)
     int len = 0;
     IP_HEADER *iphdr = (IP_HEADER *)buffer;
     TCP_HEADER *tcphdr = NULL;
-
+	
     if (iphdr->proto == IPPROTO_TCP)
     {
         /* retireve the position of the tcp header */
@@ -464,13 +493,14 @@ void process_packet(unsigned char *buffer, int size)
         tcphdr = (TCP_HEADER *) (buffer + ip_len);
         if (tcphdr->th_flag == 18) //ACK+SYN
         {
+			//放到个队列中，使用 connect 函数验证下。
             uint16_t port = ntohs(tcphdr->th_sport);
             if (is_port_in_portlist(port))
             {
                 g_open_port_count ++;
                 len = sprintf(log_buff, "%-16s%-8u                            \n",
-                              inet_ntoa(*(struct in_addr *)&iphdr->sourceIP),
-                              ntohs(tcphdr->th_sport));
+					inet_ntoa(*(struct in_addr *)&iphdr->sourceIP),
+					ntohs(tcphdr->th_sport));
                 if (bIsLogRet)
                 {
                     int ret = write(log_fd, log_buff, len);
@@ -486,46 +516,9 @@ void process_packet(unsigned char *buffer, int size)
 }
 
 
-int start_sniffer()
-{
-    int sock_raw = 0; // raw socket for sniff
-    int  data_size;
-    socklen_t saddr_size;
-    struct sockaddr saddr;
-
-    unsigned char buffer[65536];// = (unsigned char *)malloc(65536); //Its Big!
-
-    //Create a raw socket that shall sniff
-    sock_raw = socket(AF_INET , SOCK_RAW , IPPROTO_TCP);
-
-    if (sock_raw < 0)
-    {
-        printf("Socket Error\n");
-        fflush(stdout);
-        return 1;
-    }
-
-    saddr_size = sizeof(saddr);
-    while (!g_IsTimeToShutDown)
-    {
-        //Receive a packet
-        data_size = recvfrom(sock_raw , buffer , 65536 , 0 , &saddr , &saddr_size);
-        if (data_size < 0 )
-        {
-            msg("%s", "Recvfrom error , failed to get packets\n");
-            return 1;
-        }
-        //Now process the packet
-        process_packet(buffer , data_size);
-    }
-    close(sock_raw);
-    //    msg("%s","Sniffer finished.");
-    return 0;
-}
-
 /*
- * 得到本地要绑定的 ip
- */
+* 得到本地要绑定的 ip
+*/
 uint32_t get_local_ip (uint32_t ip)
 {
     int sock = socket ( AF_INET, SOCK_DGRAM, 0);
@@ -544,12 +537,30 @@ uint32_t get_local_ip (uint32_t ip)
     err = connect( sock , (const struct sockaddr *) &serv , sizeof(serv) );
     err = getsockname(sock, (struct sockaddr *) &name, &namelen);
     //const char *p = inet_ntop(AF_INET, &name.sin_addr, buffer, 100);
-    if (-1 == err)
+    close(sock);
+	if (-1 == err)
     {
         msg("%s:%s", __func__, "getsockname failed\n");
+		return 0;	
     }
-    close(sock);
     return name.sin_addr.s_addr;
+}
+
+/*
+获取端口的 bunny
+*/
+int GetPortbunny(int socket,char *buff,uint32_t len)
+{
+	unsigned char data[] = {"GET / HTTP/1.1\r\n\r\n"};
+	if(send(socket,data,sizeof(data),0) > 0)
+	{
+		int recv_bytes = 0;
+		unsigned buff[1024];
+		if((recv_bytes = recv(socket,buff,sizeof(buff),0) > 0))
+		{
+			
+		}
+	}
 }
 
 int ip_callback(uint32_t ip, void *lparam)
@@ -572,9 +583,16 @@ int ip_callback(uint32_t ip, void *lparam)
         if (g_port_list[idx])
         {
             addr.sin_port = htons(idx);
-            msg("scanning %16s:%u   found %8u host\r", inet_ntoa(*(struct in_addr *)&ip), idx,g_open_port_count);
+            msg("scanning %16s:%u   found %8u host\r", 
+				inet_ntoa(*(struct in_addr *)&ip), 
+				idx,
+				g_open_port_count);
             srandom(seed++);
-            len = buildSynPacket(buff, g_bind_ip, htons(random() % 0xFFFF), ip, addr.sin_port);
+            len = buildSynPacket(buff, // 
+				g_bind_ip,  //src ip
+				htons(random() % 0xFFFF), //src port
+				ip,  //dst ip
+				addr.sin_port);
             if ( sendto (s, buff, len, 0 , (struct sockaddr *) &addr, sizeof (addr)) < 0)
             {
                 printf ("Error sending syn packet. Error number : %d . Error message : %s \n" , errno , strerror(errno));
@@ -614,6 +632,7 @@ int main(int argc, char *argv[])
         if (log_fd == -1)
         {
             msg("Can not create log file .\n");
+			return -1;
         }
     }
     //Create a raw socket
@@ -630,7 +649,8 @@ int main(int argc, char *argv[])
     if (setsockopt (s, IPPROTO_IP, IP_HDRINCL, val, sizeof (one)) < 0)
     {
         printf ("Error setting IP_HDRINCL. Error number : %d . Error message : %s \n" , errno , strerror(errno));
-        exit(0);
+        close(s);
+		return -1;
     }
     msg("%s", "Starting sniffer thread...\n");
     pthread_t sniffer_thread;
